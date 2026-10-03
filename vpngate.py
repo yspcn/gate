@@ -466,7 +466,7 @@ EDGE_HOSTS = [
     if h.strip()
 ]
 
-HOSTS_URL = os.environ.get("HOSTS_URL", "https://jerylihub.github.io/gate/hosts.txt")
+HOSTS_URL = os.environ.get("HOSTS_URL", "https://yspcn.github.io/gate/hosts.txt")
 
 
 def build_hosts_text(data):
@@ -589,8 +589,24 @@ def build_sub_text(data):
                 n.get("host") or "",
             ),
         )
-        for i, n in enumerate(nodes, 1):
-            name = f"{zh}-{i:02d}"
+        res_nodes = [n for n in nodes if n.get("residential") == "residential"]
+        dc_nodes = [n for n in nodes if n.get("residential") != "residential"]
+        
+        for i, n in enumerate(res_nodes, 1):
+            name = f"{zh}-住宅-{i:02d}"
+            chain = {"type": "sstp", **_socks5_account(f"vpn:vpn@{n['host']}:{n['port']}", 443)}
+            chain_json = json.dumps(chain, separators=(",", ":"))
+            enc = _b64_secret_encode(chain_json, EDT_UUID)
+            path = quote("/video/" + enc, safe="")
+            link = (
+                f"vless://{EDT_UUID}@{EDT_DOMAIN}:443?security=tls&type=ws"
+                f"&host={EDT_DOMAIN}&fp={EDT_FINGERPRINT}&sni={EDT_DOMAIN}"
+                f"&path={path}&encryption=none&alpn=#{quote(name, safe='')}"
+            )
+            lines.append(link)
+            
+        for i, n in enumerate(dc_nodes, 1):
+            name = f"{zh}-机房-{i:02d}"
             chain = {"type": "sstp", **_socks5_account(f"vpn:vpn@{n['host']}:{n['port']}", 443)}
             chain_json = json.dumps(chain, separators=(",", ":"))
             enc = _b64_secret_encode(chain_json, EDT_UUID)
