@@ -490,7 +490,7 @@ EDGE_HOSTS = [
     if h.strip()
 ]
 
-HOSTS_URL = os.environ.get("HOSTS_URL", "https://jerylihub.github.io/gate/hosts.txt")
+HOSTS_URL = os.environ.get("HOSTS_URL", "https://yspcn.github.io/gate/hosts.txt")
 
 
 def build_hosts_text(data):
@@ -549,7 +549,7 @@ def build_hosts_text(data):
 EDT_UUID = os.environ.get("EDT_UUID", "663fefbd-146f-437d-ac5d-7b15a69918af")
 EDT_DOMAIN = os.environ.get("EDT_DOMAIN", "edge.ljt.de5.net")
 EDT_FINGERPRINT = os.environ.get("EDT_FINGERPRINT", "chrome")
-SUB_URL = os.environ.get("SUB_URL", "https://jerylihub.github.io/gate/sub.txt")
+SUB_URL = os.environ.get("SUB_URL", "https://yspcn.github.io/gate/sub.txt")
 
 
 def _b64_secret_encode(plaintext, secret):
