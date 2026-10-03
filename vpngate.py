@@ -349,7 +349,7 @@ def check_one(node, session):
             }
             out["residential"] = classify_network(out["host"], org, exit_info.get("is_datacenter"))
         else:
-            out["residential"] = classify_network(out["host"], None, None)
+            out["residential"] = classify_network(out["host"], node.get("_asn_org"), node.get("_is_hosting"))
         return out
     except Exception as exc:
         out["error"] = f"{type(exc).__name__}: {exc}"
@@ -357,8 +357,32 @@ def check_one(node, session):
         return out
 
 
+def enrich_ip_info(nodes, session):
+    """批量查询 IP 情报，判断是否为数据中心"""
+    ips = list({n["ip"] for n in nodes if n.get("ip")})
+    ip_info = {}
+    
+    import time
+    for i in range(0, len(ips), 100):
+        batch = ips[i:i+100]
+        try:
+            r = session.post("http://ip-api.com/batch?fields=query,hosting,org,isp", json=batch, timeout=10)
+            if r.status_code == 200:
+                for item in r.json():
+                    ip_info[item["query"]] = item
+            time.sleep(0.5) # 防止触碰限流
+        except Exception as e:
+            pass
+            
+    for n in nodes:
+        info = ip_info.get(n["ip"], {})
+        n["_asn_org"] = info.get("org") or info.get("isp") or ""
+        n["_is_hosting"] = info.get("hosting")
+    return nodes
+
 def check_all(nodes, session):
     """32 并发 (与网页端一致)。单节点失败不影响整体; 但区分'节点不可用'与'Worker 异常'。"""
+    nodes = enrich_ip_info(nodes, session)
     results = []
     with ThreadPoolExecutor(max_workers=CONCURRENCY) as pool:
         futures = [pool.submit(check_one, n, session) for n in nodes]
@@ -407,7 +431,7 @@ def build_outputs(results, raw_count, sstp_count, source):
     return data
 
 
-CHAIN_URL = os.environ.get("CHAIN_URL", "https://jerylihub.github.io/gate/chains.txt")
+CHAIN_URL = os.environ.get("CHAIN_URL", "https://yspcn.github.io/gate/chains.txt")
 
 
 def build_chains_text(data):
@@ -466,7 +490,7 @@ EDGE_HOSTS = [
     if h.strip()
 ]
 
-HOSTS_URL = os.environ.get("HOSTS_URL", "https://yspcn.github.io/gate/hosts.txt")
+HOSTS_URL = os.environ.get("HOSTS_URL", "https://jerylihub.github.io/gate/hosts.txt")
 
 
 def build_hosts_text(data):
