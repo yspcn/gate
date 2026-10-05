@@ -363,16 +363,22 @@ def enrich_ip_info(nodes, session):
     ip_info = {}
     
     import time
-    for i in range(0, len(ips), 100):
-        batch = ips[i:i+100]
-        try:
-            r = session.post("http://ip-api.com/batch?fields=query,hosting,org,isp", json=batch, timeout=10)
-            if r.status_code == 200:
-                for item in r.json():
-                    ip_info[item["query"]] = item
-            time.sleep(0.5) # 防止触碰限流
-        except Exception as e:
-            pass
+    import requests
+    # 独立 session 避免影响主检测池
+    with requests.Session() as ip_session:
+        for i in range(0, len(ips), 100):
+            batch = ips[i:i+100]
+            try:
+                r = ip_session.post("http://ip-api.com/batch?fields=query,hosting,org,isp", json=batch, timeout=10)
+                if r.status_code == 403:
+                    log("IP-API", "触发 IP-API 的机房封禁 (HTTP 403)，停止批量查 IP")
+                    break
+                if r.status_code == 200:
+                    for item in r.json():
+                        ip_info[item["query"]] = item
+                time.sleep(0.5) # 防止触碰限流
+            except Exception as e:
+                pass
             
     for n in nodes:
         info = ip_info.get(n["ip"], {})
@@ -717,6 +723,11 @@ def main():
 
     log("CLOUDFLARE WORKER", f"检测成功: {len(success)}")
     log("CLOUDFLARE WORKER", f"检测失败: {len(failed)}" + (f" (其中 Worker 异常 {len(worker_errors)})" if worker_errors else ""))
+    
+    if worker_errors:
+        unique_errors = list({r.get("error") for r in worker_errors if r.get("error")})
+        log("CLOUDFLARE WORKER", f"Worker 异常原因示例: {unique_errors[:5]}")
+
     log("CLOUDFLARE WORKER", f"耗时: {elapsed:.1f}s")
 
     # 硬性失败: Worker 完全不可达 (没有任何一个请求拿到正常响应)
