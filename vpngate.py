@@ -490,8 +490,7 @@ EDGE_HOSTS = [
     h.strip()
     for h in os.environ.get(
         "EDGE_HOSTS",
-        "cfyx.simon.us.kg:443,fdyx.simon.us.kg:443,ali.nonull.pp.ua:443,auto.dolby.dpdns.org:443,"
-        "cdn.cnno.de:443,saas.sin.fan:443,cf.777791.xyz:443",
+        "172.66.1.119:443,172.66.0.65:443,104.17.153.127:443,8.35.211.112:443,172.66.1.115:443,104.18.33.33:443",
     ).split(",")
     if h.strip()
 ]
@@ -501,22 +500,12 @@ HOSTS_URL = os.environ.get("HOSTS_URL", "https://yspcn.github.io/gate/hosts.txt"
 
 def build_hosts_text(data):
     """生成可直接粘贴到 edgetunnel 后台「自定义优选IP」框的清单。
-    每行 = 入口地址#名字$sstp://... ; 名字固定, 底下 SSTP 节点每 30 分钟自动换。"""
+    格式参考 https://heleihub.github.io/gate/nodes.txt:
+    不带任何注释头与空行，每行严格为: 入口IP:端口#国家-住宅/机房-编号$sstp://vpn:vpn@节点:端口"""
     countries = data["countries"]
-    # 入口: 默认用 7 个实测可用优选域名循环分配; 可用 HOSTS_ENTRY 覆盖(逗号分隔)
     _entry = os.environ.get("HOSTS_ENTRY", "").strip()
     edge = [e.strip() for e in _entry.split(",") if e.strip()] or EDGE_HOSTS or [f"{EDT_DOMAIN}:443"]
-    lines = [
-        "# edgetunnel「自定义优选IP」清单 (整段复制, 追加到后台现有内容后面)",
-        f"# 自动更新: {data['generated_at']} (每 30 分钟重新检测)",
-        f"# 固定地址: {HOSTS_URL}",
-        "# 每行 = 入口地址#名字$sstp://vpn:vpn@节点:端口",
-        "# 入口用 7 个实测可用优选域名循环分配",
-        "# 名字 = 国家-住宅/机房-编号, 直接区分住宅与机房",
-        "# 名字固定; 只有 $sstp:// 后面的节点地址每 30 分钟自动更换",
-        "# 账号密码固定 vpn:vpn ; 节点端口必须保留",
-        "# ========================================================",
-    ]
+    lines = []
     idx = 0
     ordered = sorted(
         countries.items(),
@@ -534,10 +523,6 @@ def build_hosts_text(data):
                 n.get("host") or "",
             ),
         )
-        lines.append("")
-        lines.append(
-            f"# ---- {zh} {code} · {grp['count']} 节点 (住宅 {grp['residential']} / 机房 {grp['datacenter']}) ----"
-        )
         res_nodes = [n for n in nodes if n.get("residential") == "residential"]
         dc_nodes = [n for n in nodes if n.get("residential") != "residential"]
         for i, n in enumerate(res_nodes, 1):
@@ -548,7 +533,7 @@ def build_hosts_text(data):
             entry = edge[idx % len(edge)]
             idx += 1
             lines.append(f"{entry}#{zh}-机房-{i:02d}$sstp://vpn:vpn@{n['host']}:{n['port']}")
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines) + ("\n" if lines else "")
 
 
 # edgetunnel 完整订阅 (vless://) 配置
@@ -676,6 +661,11 @@ def write_outputs(data):
     # 可直接粘贴进后台「自定义优选IP」框的清单 (入口地址#名字$sstp://...)
     hosts_path = os.path.join(PUBLIC_DIR, "hosts.txt")
     with open(hosts_path, "w", encoding="utf-8") as f:
+        f.write(build_hosts_text(data))
+
+    # 同时生成 nodes.txt (与 hosts.txt 完全一致)
+    nodes_path = os.path.join(PUBLIC_DIR, "nodes.txt")
+    with open(nodes_path, "w", encoding="utf-8") as f:
         f.write(build_hosts_text(data))
 
     # 完整 vless:// 订阅 (填进后台「订阅链接」URL, 客户端自动轮换)
